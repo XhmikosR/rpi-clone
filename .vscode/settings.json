@@ -1,0 +1,14 @@
+{
+  "editor.tabSize": 4,
+  "editorconfig.generateAuto": false,
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+  "files.trimFinalNewlines": true,
+  "shellcheck.useWorkspaceRootAsCwd": true,
+  "shellformat.flag": "-i=4 -ci -sr",
+  "shellformat.useEditorConfig": false,
+  "[shellscript]": {
+    "editor.defaultFormatter": "foxundermoon.shell-format",
+    "editor.formatOnSave": true
+  }
+}
