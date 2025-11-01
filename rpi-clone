@@ -24,7 +24,7 @@ grub_auto=1
 PGM=$(basename $0)
 setup_command="$PGM-setup"
 
-rsync_options="--force -rltWDEHXAgopx"
+rsync_options=(--force -rltWDEHXAgopx)
 
 if [ $(id -u) != 0 ]; then
     echo -e "$PGM needs to be run as root.\n"
@@ -60,23 +60,26 @@ confirm() {
 }
 
 # sfdisk is in fdisk package
-commands="rsync parted fdisk findmnt column fsck.vfat"
-packages="rsync parted util-linux mount bsdmainutils dosfstools"
-need_packages=""
+declare -A cmd_pkg_map=(
+    [rsync]="rsync"
+    [parted]="parted"
+    [fdisk]="util-linux"
+    [findmnt]="util-linux"
+    [column]="mount"
+    [fsck.vfat]="dosfstools"
+)
+need_packages=()
 
-idx=1
-for cmd in $commands; do
-    if ! command -v $cmd > /dev/null; then
-        pkg=$(echo "$packages" | cut -d " " -f $idx)
-        printf "%-30s %s\n" "Command not found: $cmd" "Package required: $pkg"
-        need_packages="$need_packages $pkg"
+for cmd in "${!cmd_pkg_map[@]}"; do
+    if ! command -v "$cmd" > /dev/null; then
+        printf "%-30s %s\n" "Command not found: $cmd" "Package required: ${cmd_pkg_map[$cmd]}"
+        need_packages+=("${cmd_pkg_map[$cmd]}")
     fi
-    ((++idx))
 done
 
-if [ "$need_packages" != "" ]; then
+if [ ${#need_packages[@]} -gt 0 ]; then
     confirm "Do you want to apt-get install the packages?" "abort"
-    apt-get install -y --no-install-recommends $need_packages
+    apt-get install -y --no-install-recommends "${need_packages[@]}"
 fi
 
 clone=/mnt/clone
@@ -266,7 +269,7 @@ rsync_file_system() {
     fi
 
     if [ "$3" == "with-root-excludes" ]; then
-        rsync $rsync_options --delete \
+        rsync "${rsync_options[@]}" --delete \
             $exclude_useropt \
             $exclude_swapfile \
             --exclude '.gvfs' \
@@ -280,7 +283,7 @@ rsync_file_system() {
             $src_dir \
             $dst_dir
     else
-        rsync $rsync_options --delete \
+        rsync "${rsync_options[@]}" --delete \
             $exclude_useropt \
             --exclude '.gvfs' \
             --exclude 'lost\+found/*' \
@@ -465,7 +468,7 @@ print_options() {
     fi
 
     if [ "$setup_args" != "" ]; then
-        printf "%-22s : %s\n" "Run setup script" "$setup_command $setup_args"
+        printf "%-22s : %s\n" "Run setup script" "$setup_command ${setup_args[*]}"
     else
         printf "%-22s : no.\n" "Run setup script"
     fi
@@ -730,7 +733,7 @@ done
 
 # command line
 #
-setup_args=""
+setup_args=()
 edit_fstab_name=""
 ext_label=""
 verbose="no"
@@ -752,7 +755,7 @@ while [ "$1" ]; do
     case "$1" in
         -v | --verbose)
             verbose="yes"
-            rsync_options=${rsync_options}v
+            rsync_options+=("v")
             ;;
         -u | --unattended)
             unattended=1
@@ -764,7 +767,7 @@ while [ "$1" ]; do
         -q | --quiet)
             unattended=1
             quiet=1
-            rsync_options=${rsync_options}q
+            rsync_options+=("q")
             ;;
         --exclude=* | --exclude-from=*)
             exclude_useropt="${exclude_useropt} $1"
@@ -775,11 +778,7 @@ while [ "$1" ]; do
                 echo "Cannot find script $setup_command for setup arg \"$1\"."
                 usage_error=1
             fi
-            if [ "$setup_args" == "" ]; then
-                setup_args="$1"
-            else
-                setup_args="$setup_args $1"
-            fi
+            setup_args+=("$1")
             ;;
         -e | --edit-fstab)
             shift
@@ -1569,9 +1568,9 @@ if ((have_grub)); then
     fi
 fi
 
-if [ "$setup_args" != "" ]; then
-    qprintf "\nRunning setup script: $setup_command $setup_args\n"
-    $setup_command $setup_args
+if [ "${#setup_args[@]}" -gt 0 ]; then
+    qprintf "\nRunning setup script: $setup_command ${setup_args[*]}\n"
+    $setup_command "${setup_args[@]}"
 fi
 
 date=$(date '+%F %H:%M')
