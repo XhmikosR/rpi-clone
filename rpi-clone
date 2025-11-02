@@ -91,7 +91,7 @@ clone_log=/var/log/$PGM.log
 HOSTNAME=$(hostname)
 
 usage() {
-    echo $"
+    echo "
 usage: $PGM sdN {-v|--verbose} {-f|--force-initialize} {-f2}
          {-p|--p1-size size} {-u|--unattended} {-U|--Unattended} {-q|--quiet}
          {-s|--setup host} {-e|--edit-fstab sdX } {-m|--mountdir dir }
@@ -310,7 +310,7 @@ print_partitions() {
 
     printf "\n%-43s%s" "Booted disk: $src_disk $src_size_readable" \
         "Destination disk: $dst_disk $dst_size_readable"
-    echo $"
+    echo "
 ---------------------------------------------------------------------------"
     out=$'Part, Size,FS,Label         ,Part, Size,FS,Label\n'
     for ((p = 1; p <= n_parts; p++)); do
@@ -318,30 +318,30 @@ print_partitions() {
             readable_size "${src_size_sectors[p]}" "512" tmp
             printf -v sectors_readable "%7s" "$tmp"
             pname="$p ${src_name[p]}"
-            out=${out}$"$pname,$sectors_readable,${src_fs_type[p]},${src_label[p]},"
+            out=${out}"$pname,$sectors_readable,${src_fs_type[p]},${src_label[p]},"
         else
-            out=${out}$"  ,  ,  ,  ,"
+            out=${out}"  ,  ,  ,  ,"
         fi
 
         if ((p <= n_dst_parts && dst_exists[p])); then
             readable_size "${dst_size_sectors[p]}" "512" tmp
             printf -v sectors_readable "%7s" "$tmp"
-            out=${out}$"$p,$sectors_readable,${dst_fs_type[p]},${dst_label[p]},"
+            out=${out}"$p,$sectors_readable,${dst_fs_type[p]},${dst_label[p]},"
         else
-            out=${out}$"  ,  ,  ,  ,"
+            out=${out}"  ,  ,  ,  ,"
         fi
         out=${out}$'\n'
     done
 
-    echo $"$out" | column -t -s ','
+    echo -e "$out" | column -t -s ','
 
     if ((alt_root_part_num > 0)); then
-        echo $"
+        echo "
 ** Assuming destination root partition for the clone is $dst_part_base$root_part_num
    The root FS mount is not from booted $src_disk.  It is ${src_root_dev#/dev/}"
 
     fi
-    echo $"---------------------------------------------------------------------------"
+    echo "---------------------------------------------------------------------------"
 }
 
 print_sync_actions() {
@@ -431,7 +431,7 @@ print_options() {
     if ((quiet)); then
         return
     fi
-    echo $"---------------------------------------------------------------------------"
+    echo "---------------------------------------------------------------------------"
 
     if ((force_sync)); then
         printf "%-22s : %s\n" "-F" "forcing clone to skip some errors."
@@ -638,7 +638,7 @@ if [ "$src_disk" != "$src_root_disk" ]; then
         alt_root_part_num="$root_part_num"
         root_part_num=$((boot_part_num + 1))
     else
-        echo $"
+        echo "
 Boot and root are on different disks and it's not a SD card boot.
 Don't know how to partition the destination disk!"
         exit 1
@@ -668,7 +668,7 @@ src_mount_table=$(findmnt -o source,target -n -l | grep -e "^/dev/$src_disk" -e 
 n_mounts=$(echo "$src_mount_table" | wc -l)
 
 if ((alt_root_part_num > 0 && n_src_parts < 2)); then
-    echo $"
+    echo "
 Booted disk has only one partition and the root is from another device.
 Don't know how to partition the destination disk!
 "
@@ -1008,7 +1008,7 @@ fi
 chk_disk=$(cat /proc/partitions | grep -m 1 "$dst_disk")
 
 if [ "$chk_disk" == "" ]; then
-    echo $"
+    echo "
   Cannot find '$dst_disk' in the partition table.  The partition table is:"
     cat /proc/partitions
     exit 1
@@ -1028,7 +1028,7 @@ if [[ ${chk_disk: -1} =~ ^[0-9]$ ]]; then
             assumed_fstab_edit=0
         fi
     else
-        qecho $"
+        qecho "
   Target disk $dst_disk ends with a digit so may be a partition.
   $PGM requires disk names like 'sda' and not partition names like 'sda1'."
 
@@ -1200,7 +1200,7 @@ print_partitions
 
 if ((initialize)); then
     if ((unattended && !Unattended)); then
-        echo $"
+        echo "
 Unattended -u option not allowed when initializing.
 Use -U for unattended even if initializing.
 "
@@ -1592,7 +1592,7 @@ qprintf "   Start - %s    End - %s    Elapsed Time - %d:%02d\n" \
     "$start_time" "$stop_time" "$((clone_sec / 60))" "$((clone_sec % 60))"
 
 if ((!unattended)); then
-    echo -n $"
+    echo -n "
 Cloned partitions are mounted on $clone for inspection or customizing.
 
 Hit Enter when ready to unmount the /dev/$dst_disk partitions..."
