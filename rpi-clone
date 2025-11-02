@@ -46,15 +46,18 @@ if [ -f /etc/os-release ]; then
 fi
 
 confirm() {
+    local prompt_message=$1
+    local abort_on_no=$2
+
     if ((unattended || (initialize && Unattended))); then
         return 0
     fi
-    printf "\n%s  (yes/no): " "$1"
+    printf "\n%s  (yes/no): " "$prompt_message"
     read -r resp
     if [ "$resp" = "y" ] || [ "$resp" = "yes" ]; then
         return 0
     fi
-    if [ "$2" == "abort" ]; then
+    if [ "$abort_on_no" == "abort" ]; then
         echo -e "Aborting!\n"
         exit 0
     fi
@@ -212,14 +215,17 @@ qprintf() {
 }
 
 unmount_or_abort() {
-    if [ "$1" == "" ]; then
+    local mount_point=$1
+    local error_message=$2
+
+    if [ "$mount_point" == "" ]; then
         return
     fi
-    qprintf "\n  $2\n  The clone cannot proceed unless it is unmounted."
+    qprintf "\n  $error_message\n  The clone cannot proceed unless it is unmounted."
 
-    if confirm "Do you want to unmount $1?" "abort"; then
-        if ! umount "$1"; then
-            echo "$PGM could not unmount $1."
+    if confirm "Do you want to unmount $mount_point?" "abort"; then
+        if ! umount "$mount_point"; then
+            echo "$PGM could not unmount $mount_point."
             echo -e "Aborting!\n"
             exit 0
         fi
@@ -242,27 +248,32 @@ unmount_list() {
 }
 
 mount_partition() {
-    if ! findmnt &> /dev/null "$1"; then
-        qecho "  Mounting $1 on $2"
+    local device=$1
+    local mount_point=$2
+    local unmount_dirs=$3
 
-        if ! mount "$1" "$2"; then
-            echo "    Mount failure of $1 on $2."
-            if [ "$3" != "" ]; then
-                unmount_list "$3"
+    if ! findmnt &> /dev/null "$device"; then
+        qecho "  Mounting $device on $mount_point"
+
+        if ! mount "$device" "$mount_point"; then
+            echo "    Mount failure of $device on $mount_point."
+            if [ -n "$unmount_dirs" ]; then
+                unmount_list "$unmount_dirs"
             fi
             echo "Aborting!"
             exit 1
         fi
     else
-        qecho "  Mounted $1 on $2 already"
+        qecho "  Mounted $device on $mount_point already"
     fi
 }
 
 rsync_file_system() {
-    src_dir="$1"
-    dst_dir="$2"
+    local src_dir=$1
+    local dst_dir=$2
+    local sync_mode=$3
 
-    qprintf "  => rsync $1 $2 $3..."
+    qprintf "  => rsync $src_dir $dst_dir $sync_mode..."
 
     if ! findmnt "$src_dir" &> /dev/null; then
         qecho "Unexpected error occured in line $LINENO"
@@ -271,7 +282,7 @@ rsync_file_system() {
         exit 1
     fi
 
-    if [ "$3" == "with-root-excludes" ]; then
+    if [ "$sync_mode" == "with-root-excludes" ]; then
         # shellcheck disable=SC2086
         rsync "${rsync_options[@]}" --delete \
             $exclude_useropt \
@@ -486,9 +497,9 @@ print_options() {
 }
 
 dst_part_label() {
-    pnum=$1
-    fs_type=$2
-    label=""
+    local pnum=$1
+    local fs_type=$2
+    local label=""
 
     if [ "$ext_label" != "" ] && [[ "$fs_type" == *"ext"* ]]; then
         rep="${ext_label: -1}"
@@ -506,13 +517,12 @@ dst_part_label() {
 }
 
 mkfs_label() {
-    pnum=$1
-    fs_type=$2
+    local pnum=$1
+    local fs_type=$2
+    local label_flag=""
 
-    label_flag=""
     case "$fs_type" in
-        # This list is probably overcomplete, but might simplify
-        # future additions.
+        # This list is probably overcomplete, but might simplify future additions.
         vfat | msdos | exfat | fat16 | fat32)
             label_flag=-n
             ;;
@@ -527,7 +537,7 @@ mkfs_label() {
             ;;
     esac
 
-    label_arg=""
+    local label_arg=""
     dst_part_label "$pnum" "$fs_type" label
     if [ -n "$label" ] && [ -n "$label_flag" ]; then
         label_arg="$label_flag $label"
@@ -536,9 +546,9 @@ mkfs_label() {
 }
 
 change_label() {
-    pnum=$1
-    fs_type=$2
-    dev=$3
+    local pnum=$1
+    local fs_type=$2
+    local dev=$3
 
     dst_part_label "$pnum" "$fs_type" label
     if [ "$label" != "" ] && [[ "$fs_type" == *"ext"* ]]; then
@@ -551,9 +561,10 @@ change_label() {
 }
 
 get_src_disk() {
-    partition=${1#/dev/}
-    disk=${partition::-1}
-    num="${partition: -1}"
+    local partition=${1#/dev/}
+    local disk=${partition::-1}
+    local num="${partition: -1}"
+
     if [[ $disk == *"mmcblk"* || $disk == *"nvme"* ]]; then
         SD_slot_boot=1
         disk=${disk:0:7}
