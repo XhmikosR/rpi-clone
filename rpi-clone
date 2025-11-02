@@ -10,6 +10,8 @@
 # This updated code is located in a fork of Bill Wilson's git repository
 # at https://github.com/geerlingguy/rpi-clone
 
+# shellcheck disable=SC2034,SC2154
+
 version=2.0.26
 
 # prefix debug statements with line numbers when -x is used
@@ -21,12 +23,12 @@ export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 # auto run grub-install if grub detected
 grub_auto=1
 
-PGM=$(basename $0)
+PGM=$(basename "$0")
 setup_command="$PGM-setup"
 
 rsync_options=(--force -rltWDEHXAgopx)
 
-if [ $(id -u) != 0 ]; then
+if [ "$(id -u)" != 0 ]; then
     echo -e "$PGM needs to be run as root.\n"
     exit 1
 fi
@@ -48,7 +50,7 @@ confirm() {
         return 0
     fi
     printf "\n%s  (yes/no): " "$1"
-    read resp
+    read -r resp
     if [ "$resp" = "y" ] || [ "$resp" = "yes" ]; then
         return 0
     fi
@@ -170,7 +172,7 @@ readable_size() {
     else
         if [ "$format" == "MB" ]; then
             # Decimal (MB, GB, TB)
-            val=$((val / 1000 * blk_size))
+            val=$((val * blk_size / 1000))
 
             if ((val < 1000 * 1000)); then
                 result=$(echo $val | awk '{ byte = $1 / 1000; printf "%.1f%s", byte, "MB" }')
@@ -181,7 +183,7 @@ readable_size() {
             fi
         else
             # Binary (MiB, GiB, TiB)
-            val=$((val / 1024 * blk_size))
+            val=$((val * blk_size / 1024))
 
             if ((val < 1024 * 1024)); then
                 result=$(echo $val | awk '{ byte = $1 / 1024; printf "%.1f%s", byte, "M" }')
@@ -204,7 +206,8 @@ qecho() {
 
 qprintf() {
     if ((!quiet)); then
-        printf "$@"
+        # shellcheck disable=SC2059
+        printf "$@" # We need the escape characters to be passed as is
     fi
 }
 
@@ -215,7 +218,7 @@ unmount_or_abort() {
     qprintf "\n  $2\n  The clone cannot proceed unless it is unmounted."
 
     if confirm "Do you want to unmount $1?" "abort"; then
-        if ! umount $1; then
+        if ! umount "$1"; then
             echo "$PGM could not unmount $1."
             echo -e "Aborting!\n"
             exit 0
@@ -229,10 +232,10 @@ unmount_list() {
     fi
     for dir in $1; do
         qecho "  unmounting $dir"
-        if ! umount $dir; then
+        if ! umount "$dir"; then
             qecho "  Failed to unmount: $dir"
         fi
-        if ! rmdir $dir; then
+        if ! rmdir "$dir"; then
             qecho "  Failed to rmdir: $dir"
         fi
     done
@@ -242,10 +245,10 @@ mount_partition() {
     if ! findmnt &> /dev/null "$1"; then
         qecho "  Mounting $1 on $2"
 
-        if ! mount $1 $2; then
+        if ! mount "$1" "$2"; then
             echo "    Mount failure of $1 on $2."
             if [ "$3" != "" ]; then
-                unmount_list $3
+                unmount_list "$3"
             fi
             echo "Aborting!"
             exit 1
@@ -259,7 +262,7 @@ rsync_file_system() {
     src_dir="$1"
     dst_dir="$2"
 
-    qprintf "  => rsync $1 $2 $3 ..."
+    qprintf "  => rsync $1 $2 $3..."
 
     if ! findmnt "$src_dir" &> /dev/null; then
         qecho "Unexpected error occured in line $LINENO"
@@ -269,6 +272,7 @@ rsync_file_system() {
     fi
 
     if [ "$3" == "with-root-excludes" ]; then
+        # shellcheck disable=SC2086
         rsync "${rsync_options[@]}" --delete \
             $exclude_useropt \
             $exclude_swapfile \
@@ -280,15 +284,16 @@ rsync_file_system() {
             --exclude '/sys/*' \
             --exclude '/tmp/*' \
             --exclude 'lost\+found/*' \
-            $src_dir \
-            $dst_dir
+            "$src_dir" \
+            "$dst_dir"
     else
+        # shellcheck disable=SC2086
         rsync "${rsync_options[@]}" --delete \
             $exclude_useropt \
             --exclude '.gvfs' \
             --exclude 'lost\+found/*' \
-            $src_dir \
-            $dst_dir
+            "$src_dir" \
+            "$dst_dir"
     fi
     qecho ""
 }
@@ -300,8 +305,8 @@ print_partitions() {
 
     n_parts=$(((n_src_parts >= n_dst_parts) ? n_src_parts : n_dst_parts))
 
-    readable_size $src_disk_size "512" src_size_readable "MB"
-    readable_size $dst_disk_size "512" dst_size_readable "MB"
+    readable_size "$src_disk_size" "512" src_size_readable "MB"
+    readable_size "$dst_disk_size" "512" dst_size_readable "MB"
 
     printf "\n%-43s%s" "Booted disk: $src_disk $src_size_readable" \
         "Destination disk: $dst_disk $dst_size_readable"
@@ -310,8 +315,8 @@ print_partitions() {
     out=$'Part, Size,FS,Label         ,Part, Size,FS,Label\n'
     for ((p = 1; p <= n_parts; p++)); do
         if ((p <= n_src_parts && src_exists[p])); then
-            readable_size ${src_size_sectors[p]} "512" tmp
-            printf -v sectors_readable "%7s" $tmp
+            readable_size "${src_size_sectors[p]}" "512" tmp
+            printf -v sectors_readable "%7s" "$tmp"
             pname="$p ${src_name[p]}"
             out=${out}$"$pname,$sectors_readable,${src_fs_type[p]},${src_label[p]},"
         else
@@ -319,8 +324,8 @@ print_partitions() {
         fi
 
         if ((p <= n_dst_parts && dst_exists[p])); then
-            readable_size ${dst_size_sectors[p]} "512" tmp
-            printf -v sectors_readable "%7s" $tmp
+            readable_size "${dst_size_sectors[p]}" "512" tmp
+            printf -v sectors_readable "%7s" "$tmp"
             out=${out}$"$p,$sectors_readable,${dst_fs_type[p]},${dst_label[p]},"
         else
             out=${out}$"  ,  ,  ,  ,"
@@ -362,8 +367,8 @@ print_sync_actions() {
                 src_label="/dev/${src_partition[p]}"
                 action_label="MOUNT SYNC"
             fi
-            readable_size ${src_used_sectors[p]} "512" used
-            readable_size ${dst_size_sectors[p]} "512" size
+            readable_size "${src_used_sectors[p]}" "512" used
+            readable_size "${dst_size_sectors[p]}" "512" size
             printf "%-22s%-14s : %s %s\n" \
                 "$src_label" "(${used} used)" "$action_label" \
                 "$flow (${size} size)"
@@ -411,10 +416,10 @@ print_image_actions() {
         fi
 
         if ((p == n_image_parts)); then
-            readable_size ${src_used_sectors[n_image_parts]} "512" used
+            readable_size "${src_used_sectors[n_image_parts]}" "512" used
             printf "%-22s%-14s : RESIZE  %s\n" "$pname" "(${used} used)" "$action"
-        elif ((src_used_sectors[$p] > 0 && p < n_image_parts)); then
-            readable_size ${src_used_sectors[p]} "512" used
+        elif ((src_used_sectors[p] > 0 && p < n_image_parts)); then
+            readable_size "${src_used_sectors[p]}" "512" used
             printf "%-22s%-14s : $action\n" "$pname" "(${used} used)"
         elif [ "$action" != "" ]; then
             printf "%-36s : $action\n" "$pname"
@@ -494,7 +499,7 @@ dst_part_label() {
         fi
     fi
 
-    if [ -z "$label" -a -n "${src_label[$pnum]}" ]; then
+    if [ -z "$label" ] && [ -n "${src_label[$pnum]}" ]; then
         label="${src_label[$pnum]}"
     fi
     printf -v "${3}" "%s" "$label"
@@ -524,7 +529,7 @@ mkfs_label() {
 
     label_arg=""
     dst_part_label "$pnum" "$fs_type" label
-    if [ -n "$label" -a -n "$label_flag" ]; then
+    if [ -n "$label" ] && [ -n "$label_flag" ]; then
         label_arg="$label_flag $label"
     fi
     printf -v "${3}" "%s" "$label_arg"
@@ -538,10 +543,10 @@ change_label() {
     dst_part_label "$pnum" "$fs_type" label
     if [ "$label" != "" ] && [[ "$fs_type" == *"ext"* ]]; then
         echo "  e2label $dev $label"
-        e2label $dev $label
+        e2label "$dev" "$label"
     elif [ "$label" != "" ] && [[ "$fs_type" == *"fat"* ]]; then
         echo "  fatlabel $dev $label"
-        fatlabel $dev $label
+        fatlabel "$dev" "$label"
     fi
 }
 
@@ -567,7 +572,7 @@ change_disk_id() {
     fi
 
     new_id=$(od -A n -t x -N 4 /dev/urandom | tr -d " ")
-    qprintf "x\ni\n0x$new_id\nr\nw\nq\n" | fdisk /dev/"$disk" > /dev/null
+    qprintf "x\ni\n0x$new_id\nr\nw\nq\n" | fdisk "/dev/$disk" > /dev/null
 
     sync
     sleep 2
@@ -644,19 +649,19 @@ fi
 # and src_fdisk_table, but is in src_df_table and src_mount_table
 #
 src_partition_table=$(parted --script -m "/dev/$src_disk" unit s print | tr -d ';')
-src_fdisk_table=$(fdisk -l /dev/$src_disk | grep "^/dev/")
+src_fdisk_table=$(fdisk -l "/dev/$src_disk" | grep "^/dev/")
 # Parted seems to force a partition rescan, which hides fs labels from
 # lsblk output. Wait for kernel/udev to be done processing.
 udevadm settle
 
 tmp=$(df | grep -e "^/dev/$src_disk" -e "^/dev/root" -e "$src_root_dev" | tr -s " ")
 dev=${src_root_dev#/dev/}
-src_df_table=$(echo "$tmp" | sed "s/root/$dev/")
+src_df_table="${tmp//root/$dev}"
 
 n_src_parts=$(echo "$src_partition_table" | tail -n 1 | cut -d ":" -f 1)
 src_disk_size=$(echo "$src_partition_table" | grep "^/dev/$src_disk" | cut -d ":" -f 2 | tr -d 's')
 
-line=$(fdisk -l /dev/$src_disk | grep "Disk identifier:")
+line=$(fdisk -l "/dev/$src_disk" | grep "Disk identifier:")
 src_disk_ID=${line#*x}
 
 src_mount_table=$(findmnt -o source,target -n -l | grep -e "^/dev/$src_disk" -e "^$src_root_dev" | tr -s " ")
@@ -774,7 +779,7 @@ while [ "$1" ]; do
             ;;
         -s | --setup)
             shift
-            if ! command -v $setup_command > /dev/null; then
+            if ! command -v "$setup_command" > /dev/null; then
                 echo "Cannot find script $setup_command for setup arg \"$1\"."
                 usage_error=1
             fi
@@ -797,11 +802,11 @@ while [ "$1" ]; do
             p1_size_new=$1
             if [[ $p1_size_arg =~ ^[0-9MG]+$ ]]; then
                 if [[ $p1_size_new == *"M" ]]; then
-                    size=$(echo $p1_size_new | cut -d M -f 1)
-                    p1_size_new=$(($size * 1024 * 1024 / 512))
+                    size=$(echo "$p1_size_new" | cut -d M -f 1)
+                    p1_size_new=$((size * 1024 * 1024 / 512))
                 elif [[ $p1_size_new == *"G" ]]; then
-                    size=$(echo $p1_size_new | cut -d G -f 1)
-                    p1_size_new=$(($size * 1024 * 1024 * 1024 / 512))
+                    size=$(echo "$p1_size_new" | cut -d G -f 1)
+                    p1_size_new=$((size * 1024 * 1024 * 1024 / 512))
                 fi
 
                 if [[ $p1_size_new =~ ^[0-9]+$ ]]; then
@@ -860,7 +865,7 @@ while [ "$1" ]; do
             convert_to_partuuid=1
             ;;
         -V | --version)
-            echo $PGM Version: $version
+            echo "$PGM Version: $version"
             exit 0
             ;;
         -h | --help)
@@ -873,7 +878,7 @@ while [ "$1" ]; do
                 exit 1
             fi
             dst_disk=$1
-            dir=$(expr substr $dst_disk 1 5)
+            dir="${dst_disk:0:5}"
             if [ "$dir" == "/dev/" ]; then
                 dst_disk=${dst_disk#/dev/}
             fi
@@ -917,38 +922,38 @@ if ((convert_to_partuuid)); then
     confirm "This will change your $fstab, are you sure?" "abort"
 
     cp $fstab $fstab_tmp
-    printf "\nConverting $fstab from device names to PARTUUID\n"
+    printf "\nConverting %s from device names to PARTUUID\n" "$fstab"
     count=0
     for ((p = 1; p <= n_src_parts; p++)); do
         if ((!src_exists[p])); then
             continue
         fi
         if grep -q "^/dev/${src_partition[p]}" $fstab_tmp; then
-            partuuid=$(lsblk -n -o PARTUUID /dev/${src_partition[p]})
+            partuuid=$(lsblk -n -o PARTUUID "/dev/${src_partition[p]}")
             sed -i "s/\/dev\/${src_partition[p]}/PARTUUID=$partuuid/" $fstab_tmp
-            printf "  Editing $fstab, changing /dev/${src_partition[p]} to $partuuid\n"
+            printf "  Editing %s, changing /dev/%s to %s\n" "$fstab" "${src_partition[p]}" "$partuuid"
             ((++count))
         fi
     done
     if ((count)); then
-        cp $fstab $fstab_save
+        cp $fstab "$fstab_save"
         cp $fstab_tmp $fstab
-        printf "Your original fstab is backed up to $fstab_save\n"
+        printf "Your original fstab is backed up to %s\n" "$fstab_save"
 
         cmdline_txt=/${cmdlinedir}/cmdline.txt
         cmdline_save=$cmdline_txt.${PGM}-save
-        if [ -f $cmdline_txt ] && grep -q "$src_root_dev" $cmdline_txt; then
+        if [ -f "$cmdline_txt" ] && grep -q "$src_root_dev" "$cmdline_txt"; then
             root_part=${src_partition[root_part_num]}
-            partuuid=$(lsblk -n -o PARTUUID $src_root_dev)
+            partuuid=$(lsblk -n -o PARTUUID "$src_root_dev")
             if [ "$partuuid" != "" ]; then
-                cp $cmdline_txt $cmdline_save
-                sed -i "s/\/dev\/$root_part/PARTUUID=$partuuid/" $cmdline_txt
-                printf "  Editing $cmdline_txt, changing root=$src_root_dev to root=PARTUUID=$partuuid\n"
-                printf "Your original cmdline.txt is backed up to $cmdline_save\n"
+                cp "$cmdline_txt" "$cmdline_save"
+                sed -i "s/\/dev\/$root_part/PARTUUID=$partuuid/" "$cmdline_txt"
+                printf "  Editing %s, changing root=%s to root=PARTUUID=%s\n" "$cmdline_txt" "$src_root_dev" "$partuuid"
+                printf "Your original cmdline.txt is backed up to %s\n" "$cmdline_save"
             fi
         fi
     else
-        printf "Could not find any $src_disk partition names in $fstab, nothing changed.\n"
+        printf "Could not find any %s partition names in %s, nothing changed.\n" "$src_disk" "$fstab"
     fi
     rm $fstab_tmp
     echo ""
@@ -977,7 +982,7 @@ for ((p = 1; p <= n_src_parts; p++)); do
         [ "${src_fs_type[p]}" != "EXT" ] &&
         [ "${src_fs_type[p]}" != "swap" ] &&
         [ "${src_fs_type[p]}" != "" ]; then
-        if mount ${src_device[p]} $clone; then
+        if mount "${src_device[p]}" $clone; then
             sleep 1
             blocks=$(df | grep "^${src_device[p]}" | tr -s " " | cut -d " " -f 3)
             umount $clone
@@ -1000,7 +1005,7 @@ if [ "$dst_disk" = "" ]; then
     usage
 fi
 
-chk_disk=$(cat /proc/partitions | grep -m 1 $dst_disk)
+chk_disk=$(cat /proc/partitions | grep -m 1 "$dst_disk")
 
 if [ "$chk_disk" == "" ]; then
     echo $"
@@ -1051,7 +1056,7 @@ dst_root_dev=/dev/${dst_part_base}${root_part_num}
 
 dst_mount_table=$(findmnt -o source,target -n -l | grep "^/dev/$dst_disk" | tr -s " ")
 
-dst_fdisk_table=$(fdisk -l /dev/$dst_disk | grep "^/dev/")
+dst_fdisk_table=$(fdisk -l "/dev/$dst_disk" | grep "^/dev/")
 ext_num=$(find_extended_partition "$dst_fdisk_table")
 
 for ((p = 1; p <= n_dst_parts; p++)); do
@@ -1257,7 +1262,7 @@ Use -U for unattended even if initializing.
 
     abort=0
     if ((!last_part_space)); then
-        readable_size $last_part_used "512" used_readable
+        readable_size "$last_part_used" "512" used_readable
         printf "%-22s : %s\n" "** WARNING **" \
             "Destination last partition resize to $image_space_readable"
         printf "%-22s : %s\n" "" "  is too small to hold source used $used_readable."
@@ -1279,7 +1284,7 @@ Use -U for unattended even if initializing.
 
     if ((!Unattended)) && [ "$ext_label" == "" ]; then
         printf "Optional destination ext type file system label (16 chars max): "
-        read ext_label
+        read -r ext_label
     fi
 
     start_time=$(date '+%H:%M:%S')
@@ -1291,17 +1296,16 @@ Use -U for unattended even if initializing.
     printf "\nInitializing\n"
     printf "  Imaging past partition 1 start.\n"
     sync
-    printf "  => dd if=/dev/$src_disk of=/dev/$dst_disk bs=1M count=$count ..."
-    dd if=/dev/$src_disk of=/dev/$dst_disk bs=1M count=$count &> /tmp/$PGM-output
-    if [ "$?" != 0 ]; then
-        printf "\n  dd failed.  See /tmp/$PGM-output.\n"
-        printf "  Try running $PGM again.\n\n"
+    printf "  => dd if=/dev/%s of=/dev/%s bs=1M count=%d...\n" "$src_disk" "$dst_disk" "$count"
+    if ! dd if="/dev/$src_disk" of="/dev/$dst_disk" bs=1M count=$count &> "/tmp/$PGM-output"; then
+        printf "\n  dd failed.  See /tmp/%s-output.\n" "$PGM"
+        printf "  Try running %s again.\n\n" "$PGM"
         exit 1
     fi
     echo ""
     sync
     sleep 1
-    sfd0=$(sfdisk -d /dev/$src_disk)
+    sfd0=$(sfdisk -d "/dev/$src_disk")
     if ((force_2_parts && (n_src_parts > n_image_parts))); then
         remove_part_start=${src_partition[3]}
         sfd0=$(echo "$sfd0" | sed -e "/\/dev\/$remove_part_start/,\$d")
@@ -1316,26 +1320,25 @@ Use -U for unattended even if initializing.
     fi
 
     if ((p1_size_new > 0)); then
-        p1_size_orig=$(echo $sfd1 | grep -Po "size= \K[^ ,]*")
-        p2_start_orig=$(echo $sfd1 | grep -Po "\/dev\/${src_part_base}2 : start= \K[^ ,]*")
+        p1_size_orig=$(echo "$sfd1" | grep -Po "size= \K[^ ,]*")
+        p2_start_orig=$(echo "$sfd1" | grep -Po "\/dev\/${src_part_base}2 : start= \K[^ ,]*")
         p2_start_new=$((p2_start_orig + p1_size_new - p1_size_orig))
-        tmp=$(echo "$sfd1" | sed -e "s/$p2_start_orig/$p2_start_new/")
-        sfd1=$(echo "$tmp" | sed -e "s/$p1_size_orig/$p1_size_new/")
-        printf "  Resizing both destination disk partitions ..."
+        sfd1="${sfd1//$p2_start_orig/$p2_start_new}"
+        sfd1="${sfd1//$p1_size_orig/$p1_size_new}"
+        printf "  Resizing both destination disk partitions..."
     else
-        printf "  Resizing destination disk last partition ..."
+        printf "  Resizing destination disk last partition..."
     fi
 
     for ((x = 0; x < 3; ++x)); do
         sleep $((x + 1))
-        sfdisk --force /dev/$dst_disk &> /tmp/$PGM-output <<< "$sfd1"
-        if [ "$?" == 0 ]; then
+        if sfdisk --force "/dev/$dst_disk" &> "/tmp/$PGM-output" <<< "$sfd1"; then
             break
         fi
         if ((x == 2)); then
-            printf "\n====$PGM\n==orig:\n%s\n\n==edited:\n%s\n" "$sfd0" "$sfd1" >> /tmp/$PGM-output
-            printf "\n    Resize failed.  See /tmp/$PGM-output.\n"
-            printf "    Try running $PGM again.\n\n"
+            printf "\n====%s\n==orig:\n%s\n\n==edited:\n%s\n" "$PGM" "$sfd0" "$sfd1" >> "/tmp/$PGM-output"
+            printf "\n    Resize failed.  See /tmp/%s-output.\n" "$PGM"
+            printf "    Try running %s again.\n\n" "$PGM"
 
             # Don't let dst disk keep source disk ID.  Can lead to remounts.
             change_disk_id "$dst_disk"
@@ -1343,7 +1346,7 @@ Use -U for unattended even if initializing.
         fi
     done
     printf "\n    Resize success.\n"
-    printf "  Changing destination Disk ID ..."
+    printf "  Changing destination Disk ID..."
     change_disk_id "$dst_disk"
     partprobe "/dev/$dst_disk"
     sleep 2
@@ -1357,7 +1360,7 @@ Use -U for unattended even if initializing.
         if ((!src_exists[p])); then
             continue
         fi
-        dst_dev=/dev/${dst_part_base}${p}
+        dst_dev="/dev/${dst_part_base}${p}"
         fs_type=${src_fs_type[$p]}
         if ((p == ext_part_num)) || [ "$fs_type" == "--" ]; then
             continue
@@ -1372,19 +1375,21 @@ Use -U for unattended even if initializing.
         fi
 
         if [ "${src_mounted_dir[p]}" == "/boot" ] && ((p == 1)); then
-            mkfs_label $p "$fs_type" label_opt
-            printf "  => mkfs -t $fs_type $label_opt $dst_dev ..."
-            yes | mkfs -t $mkfs_type $label_opt $dst_dev &>> /tmp/$PGM-output
+            mkfs_label "$p" "$fs_type" label_opt
+            printf "  => mkfs -t %s %s %s...\n" "$fs_type" "$label_opt" "$dst_dev"
+            # shellcheck disable=SC2086
+            yes | mkfs -t $mkfs_type ${label_opt} "$dst_dev" &>> "/tmp/$PGM-output"
             echo ""
         else
             if [ "$fs_type" == "swap" ]; then
-                printf "  => mkswap $dst_dev\n"
-                mkswap $dst_dev &>> /tmp/$PGM-log
+                printf "  => mkswap %s\n" "$dst_dev"
+                mkswap "$dst_dev" &>> "/tmp/$PGM"-log
             elif ((p != ext_part_num)); then
                 if [ "${src_mounted_dir[p]}" != "" ] || ((p == n_image_parts)); then
                     mkfs_label "$p" "$fs_type" label_opt
-                    printf "  => mkfs -t $mkfs_type $label_opt $dst_dev ..."
-                    yes | mkfs -t $mkfs_type $label_opt $dst_dev &>> /tmp/$PGM-output
+                    printf "  => mkfs -t %s %s %s...\n" "$mkfs_type" "$label_opt" "$dst_dev"
+                    # shellcheck disable=SC2086
+                    yes | mkfs -t $mkfs_type ${label_opt} "$dst_dev" &>> "/tmp/$PGM-output"
                     echo ""
                     if ((p == n_image_parts)); then
                         if ((!last_part_space)); then
@@ -1394,10 +1399,9 @@ Use -U for unattended even if initializing.
                         fi
                     fi
                 else
-                    printf "  => dd if=${src_device[$p]} of=$dst_dev bs=1M ..."
-                    dd if=${src_device[$p]} of=$dst_dev bs=1M &>> /tmp/$PGM-output
-                    if [ "$?" != 0 ]; then
-                        printf "\n  dd failed.  See /tmp/$PGM-output.\n"
+                    printf "  => dd if=%s of=%s bs=1M...\n" "${src_device[$p]}" "$dst_dev"
+                    if ! dd if="${src_device[$p]}" of="$dst_dev" bs=1M &>> "/tmp/$PGM-output"; then
+                        printf "\n  dd failed.  See /tmp/%s-output.\n" "$PGM"
                     else
                         echo ""
                     fi
@@ -1423,7 +1427,7 @@ else
         if ((!src_exists[p] || !dst_exists[p])); then
             continue
         fi
-        if ((${dst_size_sectors[p]} < ${src_used_sectors[p]})) && ((src_sync_part[p])); then
+        if ((dst_size_sectors[p] < src_used_sectors[p])) && ((src_sync_part[p])); then
             qprintf "%-22s : %s\n" "** $err **" "Partition $p: source used > destination space."
             space_ok=$force_sync
             informed=1
@@ -1465,14 +1469,14 @@ else
     start_sec=$(date '+%s')
 fi
 
-line=$(fdisk -l /dev/$dst_disk | grep "Disk identifier:")
+line=$(fdisk -l "/dev/$dst_disk" | grep "Disk identifier:")
 dst_disk_ID=${line#*x}
 if [ "$dst_disk_ID" == "$src_disk_ID" ]; then
     change_disk_id "$dst_disk" "Destination disk has same Disk ID as source, changing it."
     partprobe "/dev/$dst_disk"
     sleep 2
 
-    line=$(fdisk -l /dev/$dst_disk | grep "Disk identifier:")
+    line=$(fdisk -l "/dev/$dst_disk" | grep "Disk identifier:")
     dst_disk_ID=${line#*x}
     if [ "$dst_disk_ID" == "$src_disk_ID" ]; then
         qecho "  Failed to set a new Disk ID."
@@ -1492,11 +1496,11 @@ for ((p = 1; p <= n_src_parts; p++)); do
             qprintf "Syncing unmounted partitions:\n"
         fi
         sync_msg_done=1
-        dst_dev=/dev/${dst_part_base}${p}
+        dst_dev="/dev/${dst_part_base}${p}"
         fs_type=${src_fs_type[$p]}
         change_label "$p" "$fs_type" "$dst_dev"
-        mount_partition ${src_device[p]} $clone_src ""
-        mount_partition $dst_dev $clone "$clone_src"
+        mount_partition "${src_device[p]}" $clone_src ""
+        mount_partition "$dst_dev" $clone "$clone_src"
         unmount_list="$clone_src $clone"
         rsync_file_system "${clone_src}/" "${clone}" ""
         unmount_list "$unmount_list"
@@ -1508,7 +1512,7 @@ qprintf "Syncing mounted partitions:\n"
 fs_type=${src_fs_type[$root_part_num]}
 change_label "$root_part_num" "$fs_type" "$dst_root_dev"
 
-mount_partition $dst_root_dev $clone ""
+mount_partition "$dst_root_dev" $clone ""
 unmount_list="$clone"
 
 rsync_file_system "//" "$clone" "with-root-excludes"
@@ -1519,14 +1523,14 @@ for ((p = 1; p <= n_src_parts; p++)); do
     fi
     if ((p != root_part_num && src_sync_part[p] && dst_mount_flag[p] == live)); then
         dst_dir=$clone${src_mounted_dir[p]}
-        if [ ! -d $dst_dir ]; then
-            mkdir -p $dst_dir
+        if [ ! -d "$dst_dir" ]; then
+            mkdir -p "$dst_dir"
         fi
 
-        dst_dev=/dev/${dst_part_base}${p}
+        dst_dev="/dev/${dst_part_base}${p}"
         fs_type=${src_fs_type[$p]}
         change_label "$p" "$fs_type" "$dst_dev"
-        mount_partition ${src_device[p]} ${src_mounted_dir[p]} ""
+        mount_partition "${src_device[p]}" "${src_mounted_dir[p]}" ""
         mount_partition "$dst_dev" "$dst_dir" "$unmount_list"
         rsync_file_system "${src_mounted_dir[p]}/" "${dst_dir}" ""
         unmount_list="$dst_dir $unmount_list"
@@ -1537,34 +1541,34 @@ qecho ""
 # Fix PARTUUID or device name references in cmdline.txt and fstab
 #
 fstab=${clone}/etc/fstab
-cmdline_txt=${clone}/${cmdlinedir}/cmdline.txt
+cmdline_txt="${clone}/${cmdlinedir}/cmdline.txt"
 
-if [ -f $cmdline_txt ]; then
+if [ -f "$cmdline_txt" ]; then
     if ((leave_sd_usb_boot && SD_slot_dst)); then
         qecho "Leaving SD to USB boot alone."
-        cp $cmdline_txt ${clone}/${cmdlinedir}/cmdline.boot
-        cmdline_txt=${clone}/${cmdlinedir}/cmdline.boot
+        cp "$cmdline_txt" "${clone}/${cmdlinedir}/cmdline.boot"
+        cmdline_txt="${clone}/${cmdlinedir}/cmdline.boot"
     fi
     edit_disk_reference "$cmdline_txt" "$cmdline_txt"
     if ((leave_sd_usb_boot && SD_slot_boot)); then
         qecho "Copying USB cmdline.txt to SD card to set up USB boot."
-        cp /${cmdlinedir}/cmdline.txt /${cmdlinedir}/cmdline.boot
-        cp $cmdline_txt /${cmdlinedir}/cmdline.txt
+        cp "/${cmdlinedir}/cmdline.txt" "/${cmdlinedir}/cmdline.boot"
+        cp "$cmdline_txt" "/${cmdlinedir}/cmdline.txt"
     fi
 fi
 
 edit_disk_reference "$fstab" "$fstab"
 
-rm -f $clone/etc/udev/rules.d/70-persistent-net.rules
+rm -f "$clone/etc/udev/rules.d/70-persistent-net.rules"
 
 dst_root_vol_name=${dst_label[$root_part_num]}
 
 if ((have_grub)); then
     qecho "grub-install --root-directory=$clone /dev/$dst_disk"
     if ((quiet)); then
-        grub-install --root-directory=$clone /dev/$dst_disk &> /dev/null
+        grub-install --root-directory="$clone" "/dev/$dst_disk" &> /dev/null
     else
-        grub-install --root-directory=$clone /dev/$dst_disk
+        grub-install --root-directory="$clone" "/dev/$dst_disk"
     fi
 fi
 
@@ -1574,8 +1578,8 @@ if [ "${#setup_args[@]}" -gt 0 ]; then
 fi
 
 date=$(date '+%F %H:%M')
-echo "$date  $HOSTNAME $PGM : clone to $dst_disk ($dst_root_vol_name)" >> $clone_log
-echo "$date  $HOSTNAME $PGM : clone to $dst_disk ($dst_root_vol_name)" >> ${clone}${clone_log}
+echo "$date  $HOSTNAME $PGM : clone to $dst_disk ($dst_root_vol_name)" >> "$clone_log"
+echo "$date  $HOSTNAME $PGM : clone to $dst_disk ($dst_root_vol_name)" >> "${clone}${clone_log}"
 
 stop_sec=$(date '+%s')
 clone_sec=$((stop_sec - start_sec))
@@ -1591,9 +1595,9 @@ if ((!unattended)); then
     echo -n $"
 Cloned partitions are mounted on $clone for inspection or customizing.
 
-Hit Enter when ready to unmount the /dev/$dst_disk partitions ..."
+Hit Enter when ready to unmount the /dev/$dst_disk partitions..."
 
-    read resp
+    read -r resp
 fi
 
 unmount_list "$unmount_list"
