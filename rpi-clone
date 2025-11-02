@@ -28,14 +28,14 @@ setup_command="$PGM-setup"
 
 rsync_options=(--force -rltWDEHXAgopx)
 
-if [ "$(id -u)" != 0 ]; then
+if [[ "$(id -u)" != 0 ]]; then
     echo -e "$PGM needs to be run as root.\n"
     exit 1
 fi
 
 rpios=0
 rpios_recent=0
-if [ -f /etc/os-release ]; then
+if [[ -f /etc/os-release ]]; then
     if [[ -e /etc/rpi-issue ]]; then
         rpios=1
     fi
@@ -54,10 +54,10 @@ confirm() {
     fi
     printf "\n%s  (yes/no): " "$prompt_message"
     read -r resp
-    if [ "$resp" = "y" ] || [ "$resp" = "yes" ]; then
+    if [[ "$resp" == "y" || "$resp" == "yes" ]]; then
         return 0
     fi
-    if [ "$abort_on_no" == "abort" ]; then
+    if [[ "$abort_on_no" == "abort" ]]; then
         echo -e "Aborting!\n"
         exit 0
     fi
@@ -82,7 +82,7 @@ for cmd in "${!cmd_pkg_map[@]}"; do
     fi
 done
 
-if [ ${#need_packages[@]} -gt 0 ]; then
+if [[ ${#need_packages[@]} -gt 0 ]]; then
     confirm "Do you want to apt-get install the packages?" "abort"
     apt-get install -y --no-install-recommends "${need_packages[@]}"
 fi
@@ -170,10 +170,10 @@ readable_size() {
     blk_size=$2
     format=${4:-MiB} # Default to MiB if not specified
 
-    if [ "$val" == "" ]; then
+    if [[ "$val" == "" ]]; then
         result="   ??"
     else
-        if [ "$format" == "MB" ]; then
+        if [[ "$format" == "MB" ]]; then
             # Decimal (MB, GB, TB)
             val=$((val * blk_size / 1000))
 
@@ -218,7 +218,7 @@ unmount_or_abort() {
     local mount_point=$1
     local error_message=$2
 
-    if [ "$mount_point" == "" ]; then
+    if [[ "$mount_point" == "" ]]; then
         return
     fi
     qprintf "\n  $error_message\n  The clone cannot proceed unless it is unmounted."
@@ -233,7 +233,7 @@ unmount_or_abort() {
 }
 
 unmount_list() {
-    if [ "$1" == "" ]; then
+    if [[ "$1" == "" ]]; then
         return
     fi
     for dir in $1; do
@@ -257,7 +257,7 @@ mount_partition() {
 
         if ! mount "$device" "$mount_point"; then
             echo "    Mount failure of $device on $mount_point."
-            if [ -n "$unmount_dirs" ]; then
+            if [[ -n "$unmount_dirs" ]]; then
                 unmount_list "$unmount_dirs"
             fi
             echo "Aborting!"
@@ -282,7 +282,7 @@ rsync_file_system() {
         exit 1
     fi
 
-    if [ "$sync_mode" == "with-root-excludes" ]; then
+    if [[ "$sync_mode" == "with-root-excludes" ]]; then
         # shellcheck disable=SC2086
         rsync "${rsync_options[@]}" --delete \
             $exclude_useropt \
@@ -371,7 +371,7 @@ print_sync_actions() {
             flow="to $dst_part_base$p"
         fi
         if ((src_sync_part[p])); then
-            if [ "${src_mounted_dir[p]}" != "" ]; then
+            if [[ "${src_mounted_dir[p]}" != "" ]]; then
                 src_label="${src_mounted_dir[p]}"
                 action_label="SYNC"
             else
@@ -411,10 +411,10 @@ print_image_actions() {
                 else
                     action="MKFS  SYNC $flow"
                 fi
-            elif [ "$fs_type" == "swap" ]; then
+            elif [[ "$fs_type" == "swap" ]]; then
                 action="MKSWAP"
             elif ((p != ext_part_num)); then
-                if [ "${src_mounted_dir[p]}" != "" ] || ((p == n_src_parts)); then
+                if [[ "${src_mounted_dir[p]}" != "" || $p == "$n_src_parts" ]]; then
                     if ((p < n_src_parts || last_part_space || force_sync)); then
                         action="MKFS  SYNC $flow"
                     else
@@ -432,7 +432,7 @@ print_image_actions() {
         elif ((src_used_sectors[p] > 0 && p < n_image_parts)); then
             readable_size "${src_used_sectors[p]}" "512" used
             printf "%-22s%-14s : $action\n" "$pname" "(${used} used)"
-        elif [ "$action" != "" ]; then
+        elif [[ "$action" != "" ]]; then
             printf "%-36s : $action\n" "$pname"
         fi
     done
@@ -457,14 +457,14 @@ print_options() {
             "resize /boot to" "$p1_size_new" "blocks of 512 Bytes."
     fi
 
-    if [ "$edit_fstab_name" != "" ]; then
+    if [[ "$edit_fstab_name" != "" ]]; then
         printf "%-22s : %s\n" "-e clone fstab edit" \
             "edit $src_part_base device entries to $edit_fstab_name."
     fi
 
-    if [ "$ext_label" != "" ]; then
+    if [[ "$ext_label" != "" ]]; then
         rep="${ext_label: -1}"
-        if [ "$rep" == "#" ]; then
+        if [[ "$rep" == "#" ]]; then
             msg="all ext partition types"
         else
             msg="root partition only"
@@ -483,7 +483,7 @@ print_options() {
         printf "%-22s : %s\n" "-l SD to USB boot mode" "$msg"
     fi
 
-    if [ "$setup_args" != "" ]; then
+    if [[ "$setup_args" != "" ]]; then
         printf "%-22s : %s\n" "Run setup script" "$setup_command ${setup_args[*]}"
     else
         printf "%-22s : no.\n" "Run setup script"
@@ -501,16 +501,16 @@ dst_part_label() {
     local fs_type=$2
     local label=""
 
-    if [ "$ext_label" != "" ] && [[ "$fs_type" == *"ext"* ]]; then
+    if [[ "$ext_label" != "" && "$fs_type" == *"ext"* ]]; then
         rep="${ext_label: -1}"
-        if [ "$rep" == "#" ]; then
+        if [[ "$rep" == "#" ]]; then
             label="${ext_label::-1}$pnum"
         elif ((pnum == root_part_num)); then
             label="$ext_label"
         fi
     fi
 
-    if [ -z "$label" ] && [ -n "${src_label[$pnum]}" ]; then
+    if [[ -z "$label" && -n "${src_label[$pnum]}" ]]; then
         label="${src_label[$pnum]}"
     fi
     printf -v "${3}" "%s" "$label"
@@ -539,7 +539,7 @@ mkfs_label() {
 
     local label_arg=""
     dst_part_label "$pnum" "$fs_type" label
-    if [ -n "$label" ] && [ -n "$label_flag" ]; then
+    if [[ -n "$label" && -n "$label_flag" ]]; then
         label_arg="$label_flag $label"
     fi
     printf -v "${3}" "%s" "$label_arg"
@@ -551,10 +551,10 @@ change_label() {
     local dev=$3
 
     dst_part_label "$pnum" "$fs_type" label
-    if [ "$label" != "" ] && [[ "$fs_type" == *"ext"* ]]; then
+    if [[ "$label" != "" && "$fs_type" == *"ext"* ]]; then
         echo "  e2label $dev $label"
         e2label "$dev" "$label"
-    elif [ "$label" != "" ] && [[ "$fs_type" == *"fat"* ]]; then
+    elif [[ "$label" != "" && "$fs_type" == *"fat"* ]]; then
         echo "  fatlabel $dev $label"
         fatlabel "$dev" "$label"
     fi
@@ -578,7 +578,7 @@ change_disk_id() {
     local disk=$1
     local msg=${2:-}
 
-    if [ -n "$msg" ]; then
+    if [[ -n "$msg" ]]; then
         qecho "$msg"
     fi
 
@@ -593,7 +593,7 @@ find_extended_partition() {
     local -r fdisk_table=$1
     local -r dev=$(grep "Extended" <<< "${fdisk_table}" | awk '{print $1}')
 
-    if [ -n "${dev}" ]; then
+    if [[ -n "${dev}" ]]; then
         echo "${dev: -1}"
     else
         echo "0"
@@ -607,7 +607,7 @@ edit_disk_reference() {
     if grep -q "$src_disk_ID" "$file"; then
         qecho "Editing $description PARTUUID to use $dst_disk_ID"
         sed -i "s/${src_disk_ID}/${dst_disk_ID}/g" "$file"
-    elif [ "$edit_fstab_name" != "" ] && grep -q "${src_part_base}" "$file"; then
+    elif [[ "$edit_fstab_name" != "" ]] && grep -q "${src_part_base}" "$file"; then
         qecho "Editing $description references from $src_part_base to $edit_fstab_name"
         sed -i "s/${src_part_base}/${edit_fstab_name}/" "$file"
     fi
@@ -624,7 +624,7 @@ src_part_base=""
 boot_part_num=0
 alt_root_part_num=0
 
-if [ "$src_boot_dev" == "" ]; then
+if [[ "$src_boot_dev" == "" ]]; then
     get_src_disk "$src_root_dev" "src_disk" "unused"
 else
     get_src_disk "$src_boot_dev" "src_disk" "boot_part_num"
@@ -632,16 +632,16 @@ fi
 
 get_src_disk "$src_root_dev" "src_root_disk" "root_part_num"
 
-if [ "$src_disk" == "" ]; then
+if [[ "$src_disk" == "" ]]; then
     echo "Cannot find booted device."
     exit 1
 fi
 
-if [ "$src_part_base" == "" ]; then
+if [[ "$src_part_base" == "" ]]; then
     src_part_base=$src_disk
 fi
 
-if [ "$src_disk" != "$src_root_disk" ]; then
+if [[ "$src_disk" != "$src_root_disk" ]]; then
     if ((SD_slot_boot)); then
         # Handle SD card boots with root on different USB disk device.
         # But will assume SD card has a root partition just above its root.
@@ -690,7 +690,7 @@ ext_part_num=$(find_extended_partition "$src_fdisk_table")
 
 for ((p = 1; p <= n_src_parts; p++)); do
     line=$(echo "$src_partition_table" | grep -e "^${p}:")
-    if [ "$line" == "" ]; then
+    if [[ "$line" == "" ]]; then
         src_exists[p]=0
         continue
     fi
@@ -711,21 +711,21 @@ for ((p = 1; p <= n_src_parts; p++)); do
     part_type=$(echo "$line" | cut -d ":" -f 5)
 
     src_mounted_dir[p]=$(echo "$src_mount_table" | grep -m 1 -e "^${src_device[p]}" | cut -d " " -f 2)
-    if [ "${src_mounted_dir[p]}" != "" ]; then
+    if [[ "${src_mounted_dir[p]}" != "" ]]; then
         src_sync_part[p]=1
     else
         src_sync_part[p]=0
     fi
 
     src_name[p]=""
-    if [ "$part_type" != "" ]; then
+    if [[ "$part_type" != "" ]]; then
         src_fs_type[p]="$part_type"
     else
         src_fs_type[p]="--"
     fi
     src_label[p]="--"
 
-    if [ "${src_mounted_dir[p]}" == "/" ]; then
+    if [[ "${src_mounted_dir[p]}" == "/" ]]; then
         src_name[p]="root"
     #
     # If root on device other than booted SD card, root_part_num assumed to be
@@ -737,12 +737,12 @@ for ((p = 1; p <= n_src_parts; p++)); do
         src_fs_type[p]="EXT"
     elif [[ "$part_type" == *"linux-swap"* ]]; then
         src_fs_type[p]="swap"
-    elif [ "${src_mounted_dir[p]}" != "" ]; then
+    elif [[ "${src_mounted_dir[p]}" != "" ]]; then
         src_name[p]="${src_mounted_dir[p]}"
     fi
 
     label=$(lsblk --raw --output label --noheadings "${src_device[p]}")
-    if [ "$label" != "" ]; then
+    if [[ "$label" != "" ]]; then
         src_label[p]="$label"
     fi
 done
@@ -767,7 +767,7 @@ leave_sd_usb_boot=0
 convert_to_partuuid=0
 p1_size_new=0
 
-while [ "$1" ]; do
+while [[ "$1" ]]; do
     case "$1" in
         -v | --verbose)
             verbose="yes"
@@ -851,7 +851,7 @@ while [ "$1" ]; do
                 if ((!custom_sync)) && ((p != root_part_num)); then
                     src_sync_part[p]=0
                 fi
-                if [ "${src_mounted_dir[p]}" == "$1" ]; then
+                if [[ "${src_mounted_dir[p]}" == "$1" ]]; then
                     src_sync_part[p]=1
                     mount_ok=1
                 fi
@@ -883,14 +883,14 @@ while [ "$1" ]; do
             usage
             ;;
         *)
-            if [ "$dst_disk" != "" ]; then
+            if [[ "$dst_disk" != "" ]]; then
                 echo "Bad arg: $1"
                 echo "Run $PGM with -h or no args for usage."
                 exit 1
             fi
             dst_disk=$1
             dir="${dst_disk:0:5}"
-            if [ "$dir" == "/dev/" ]; then
+            if [[ "$dir" == "/dev/" ]]; then
                 dst_disk=${dst_disk#/dev/}
             fi
             ;;
@@ -953,10 +953,10 @@ if ((convert_to_partuuid)); then
 
         cmdline_txt=/${cmdlinedir}/cmdline.txt
         cmdline_save=$cmdline_txt.${PGM}-save
-        if [ -f "$cmdline_txt" ] && grep -q "$src_root_dev" "$cmdline_txt"; then
+        if [[ -f "$cmdline_txt" ]] && grep -q "$src_root_dev" "$cmdline_txt"; then
             root_part=${src_partition[root_part_num]}
             partuuid=$(lsblk -n -o PARTUUID "$src_root_dev")
-            if [ "$partuuid" != "" ]; then
+            if [[ "$partuuid" != "" ]]; then
                 cp "$cmdline_txt" "$cmdline_save"
                 sed -i "s/\/dev\/$root_part/PARTUUID=$partuuid/" "$cmdline_txt"
                 printf "  Editing %s, changing root=%s to root=PARTUUID=%s\n" "$cmdline_txt" "$src_root_dev" "$partuuid"
@@ -984,15 +984,15 @@ for ((p = 1; p <= n_src_parts; p++)); do
     blocks=0
     dst_mount_flag[p]=0
 
-    if [ "${src_mounted_dir[p]}" != "" ]; then # df blocks are 1024 bytes
+    if [[ "${src_mounted_dir[p]}" != "" ]]; then # df blocks are 1024 bytes
         dst_mount_flag[p]=$live
         blocks=$(echo "$src_df_table" | grep -m 1 "^${src_device[p]}" | cut -d " " -f 3)
     # in case intializing, get n_src_parts to compare to dest space
     elif ((p == n_src_parts)) ||
         ((all_sync)) &&
-        [ "${src_fs_type[p]}" != "EXT" ] &&
-        [ "${src_fs_type[p]}" != "swap" ] &&
-        [ "${src_fs_type[p]}" != "" ]; then
+        [[ "${src_fs_type[p]}" != "EXT" ]] &&
+        [[ "${src_fs_type[p]}" != "swap" ]] &&
+        [[ "${src_fs_type[p]}" != "" ]]; then
         if mount "${src_device[p]}" $clone; then
             sleep 1
             blocks=$(df | grep "^${src_device[p]}" | tr -s " " | cut -d " " -f 3)
@@ -1011,14 +1011,14 @@ done
 
 # ==== destination disk checks
 #
-if [ "$dst_disk" = "" ]; then
+if [[ "$dst_disk" == "" ]]; then
     echo "No destination disk given."
     usage
 fi
 
 chk_disk=$(cat /proc/partitions | grep -m 1 "$dst_disk")
 
-if [ "$chk_disk" == "" ]; then
+if [[ "$chk_disk" == "" ]]; then
     echo "
   Cannot find '$dst_disk' in the partition table.  The partition table is:"
     cat /proc/partitions
@@ -1031,7 +1031,7 @@ if [[ ${chk_disk: -1} =~ ^[0-9]$ ]]; then
     if [[ $dst_disk == *"mmcblk"* || $dst_disk == *"nvme"* ]]; then
         SD_slot_dst=1
         dst_part_base=${dst_disk}p
-        if [ "$edit_fstab_name" == "" ] &&
+        if [[ "$edit_fstab_name" == "" ]] &&
             ! grep -q "^PARTUUID=" /etc/fstab; then
             edit_fstab_name=$dst_part_base
             assumed_fstab_edit=1
@@ -1047,7 +1047,7 @@ if [[ ${chk_disk: -1} =~ ^[0-9]$ ]]; then
     fi
 fi
 
-if [ "$src_disk" == "$dst_disk" ]; then
+if [[ "$src_disk" == "$dst_disk" ]]; then
     echo "Destination disk $dst_disk is the booted disk.  Cannot clone!"
     exit 1
 fi
@@ -1058,7 +1058,7 @@ dst_partition_table=$(parted --script -m "/dev/$dst_disk" unit s print | tr -d '
 udevadm settle
 
 n_dst_parts=$(echo "$dst_partition_table" | tail -n 1 | cut -d ":" -f 1)
-if [ "$n_dst_parts" == "/dev/$dst_disk" ]; then
+if [[ "$n_dst_parts" == "/dev/$dst_disk" ]]; then
     n_dst_parts=0
 fi
 
@@ -1072,7 +1072,7 @@ ext_num=$(find_extended_partition "$dst_fdisk_table")
 
 for ((p = 1; p <= n_dst_parts; p++)); do
     line=$(echo "$dst_partition_table" | grep -e "^${p}:")
-    if [ "$line" == "" ]; then
+    if [[ "$line" == "" ]]; then
         dst_exists[p]=0
         continue
     fi
@@ -1087,7 +1087,7 @@ for ((p = 1; p <= n_dst_parts; p++)); do
     dst_size_sectors[p]=$(echo "$line" | cut -d ":" -f 4 | tr -d 's')
 
     part_type=$(echo "$line" | cut -d ":" -f 5)
-    if [ "$part_type" != "" ]; then
+    if [[ "$part_type" != "" ]]; then
         dst_fs_type[p]="$part_type"
     else
         dst_fs_type[p]="--"
@@ -1100,7 +1100,7 @@ for ((p = 1; p <= n_dst_parts; p++)); do
         dst_fs_type[p]="EXT"
     else
         label=$(lsblk --raw --output label --noheadings "${dst_device[p]}")
-        if [ "$label" != "" ]; then
+        if [[ "$label" != "" ]]; then
             dst_label[p]="$label"
         fi
     fi
@@ -1119,11 +1119,11 @@ for ((p = 1; p <= n_src_parts; p++)); do
 
     stype=${src_fs_type[p]}
     dtype=${dst_fs_type[p]}
-    if [ "$stype" != "$dtype" ]; then
+    if [[ "$stype" != "$dtype" ]]; then
         tmp_match=0
-        if [[ "$stype" == *"fat"* ]] && [[ "$dtype" == *"fat"* ]]; then
+        if [[ "$stype" == *"fat"* && "$dtype" == *"fat"* ]]; then
             tmp_match=1
-        elif [[ "$stype" == *"ext"* ]] && [[ "$dtype" == *"ext"* ]]; then
+        elif [[ "$stype" == *"ext"* && "$dtype" == *"ext"* ]]; then
             tmp_match=1
         fi
         if ((tmp_match && p == root_part_num)); then
@@ -1184,24 +1184,24 @@ unmount_or_abort "$mounted_dev" "Directory $clone_src is already mounted with $m
 mounted_dev=$(findmnt /mnt -o source -n)
 unmount_or_abort "$mounted_dev" "$mounted_dev is currently mounted on /mnt."
 
-if [ ! -d $clone ]; then
+if [[ ! -d $clone ]]; then
     mkdir $clone
 fi
-if [ ! -d $clone_src ]; then
+if [[ ! -d $clone_src ]]; then
     mkdir $clone_src
 fi
 
 # Do not include a dhpys swapfile in rsync.  It regenerates at boot.
 #
-if [ -f /etc/dphys-swapfile ]; then
+if [[ -f /etc/dphys-swapfile ]]; then
     swapfile=$(cat /etc/dphys-swapfile | grep ^CONF_SWAPFILE | cut -f 2 -d=)
-    if [ "$swapfile" = "" ]; then
+    if [[ "$swapfile" == "" ]]; then
         swapfile=/var/swap
     fi
     exclude_swapfile="--exclude $swapfile"
 fi
 
-if ((grub_auto)) && [ -d /boot/grub ] && command -v grub-install; then
+if ((grub_auto)) && [[ -d /boot/grub ]] && command -v grub-install; then
     have_grub=1
 else
     have_grub=0
@@ -1277,7 +1277,7 @@ Use -U for unattended even if initializing.
         printf "%-22s : %s\n" "** WARNING **" \
             "Destination last partition resize to $image_space_readable"
         printf "%-22s : %s\n" "" "  is too small to hold source used $used_readable."
-        if [ "$n_image_parts" == "$root_part_num" ] && ((!force_sync)); then
+        if [[ "$n_image_parts" == "$root_part_num" ]] && ((!force_sync)); then
             printf "%-22s : %s\n" "** FATAL **" "This is the root partition, so aborting!"
             printf "%-22s : %s\n" "" "  Use -F to override."
             abort=1
@@ -1293,7 +1293,7 @@ Use -U for unattended even if initializing.
     fi
     confirm "Initialize and clone to the destination disk ${dst_disk}?" "abort"
 
-    if ((!Unattended)) && [ "$ext_label" == "" ]; then
+    if ((!Unattended)) && [[ "$ext_label" == "" ]]; then
         printf "Optional destination ext type file system label (16 chars max): "
         read -r ext_label
     fi
@@ -1373,30 +1373,30 @@ Use -U for unattended even if initializing.
         fi
         dst_dev="/dev/${dst_part_base}${p}"
         fs_type=${src_fs_type[$p]}
-        if ((p == ext_part_num)) || [ "$fs_type" == "--" ]; then
+        if ((p == ext_part_num)) || [[ "$fs_type" == "--" ]]; then
             continue
         fi
 
-        if [ "$fs_type" == "fat16" ]; then
+        if [[ "$fs_type" == "fat16" ]]; then
             mkfs_type="vfat"
-        elif [ "$fs_type" == "fat32" ]; then
+        elif [[ "$fs_type" == "fat32" ]]; then
             mkfs_type="vfat -F 32"
         else
             mkfs_type=$fs_type
         fi
 
-        if [ "${src_mounted_dir[p]}" == "/boot" ] && ((p == 1)); then
+        if [[ "${src_mounted_dir[p]}" == "/boot" ]] && ((p == 1)); then
             mkfs_label "$p" "$fs_type" label_opt
             printf "  => mkfs -t %s %s %s...\n" "$fs_type" "$label_opt" "$dst_dev"
             # shellcheck disable=SC2086
             yes | mkfs -t $mkfs_type ${label_opt} "$dst_dev" &>> "/tmp/$PGM-output"
             echo ""
         else
-            if [ "$fs_type" == "swap" ]; then
+            if [[ "$fs_type" == "swap" ]]; then
                 printf "  => mkswap %s\n" "$dst_dev"
                 mkswap "$dst_dev" &>> "/tmp/$PGM"-log
             elif ((p != ext_part_num)); then
-                if [ "${src_mounted_dir[p]}" != "" ] || ((p == n_image_parts)); then
+                if [[ "${src_mounted_dir[p]}" != "" || $p == "$n_image_parts" ]]; then
                     mkfs_label "$p" "$fs_type" label_opt
                     printf "  => mkfs -t %s %s %s...\n" "$mkfs_type" "$label_opt" "$dst_dev"
                     # shellcheck disable=SC2086
@@ -1482,14 +1482,14 @@ fi
 
 line=$(fdisk -l "/dev/$dst_disk" | grep "Disk identifier:")
 dst_disk_ID=${line#*x}
-if [ "$dst_disk_ID" == "$src_disk_ID" ]; then
+if [[ "$dst_disk_ID" == "$src_disk_ID" ]]; then
     change_disk_id "$dst_disk" "Destination disk has same Disk ID as source, changing it."
     partprobe "/dev/$dst_disk"
     sleep 2
 
     line=$(fdisk -l "/dev/$dst_disk" | grep "Disk identifier:")
     dst_disk_ID=${line#*x}
-    if [ "$dst_disk_ID" == "$src_disk_ID" ]; then
+    if [[ "$dst_disk_ID" == "$src_disk_ID" ]]; then
         qecho "  Failed to set a new Disk ID."
     fi
 fi
@@ -1534,7 +1534,7 @@ for ((p = 1; p <= n_src_parts; p++)); do
     fi
     if ((p != root_part_num && src_sync_part[p] && dst_mount_flag[p] == live)); then
         dst_dir=$clone${src_mounted_dir[p]}
-        if [ ! -d "$dst_dir" ]; then
+        if [[ ! -d "$dst_dir" ]]; then
             mkdir -p "$dst_dir"
         fi
 
@@ -1554,7 +1554,7 @@ qecho ""
 fstab=${clone}/etc/fstab
 cmdline_txt="${clone}/${cmdlinedir}/cmdline.txt"
 
-if [ -f "$cmdline_txt" ]; then
+if [[ -f "$cmdline_txt" ]]; then
     if ((leave_sd_usb_boot && SD_slot_dst)); then
         qecho "Leaving SD to USB boot alone."
         cp "$cmdline_txt" "${clone}/${cmdlinedir}/cmdline.boot"
@@ -1583,7 +1583,7 @@ if ((have_grub)); then
     fi
 fi
 
-if [ "${#setup_args[@]}" -gt 0 ]; then
+if [[ "${#setup_args[@]}" -gt 0 ]]; then
     qprintf "\nRunning setup script: $setup_command ${setup_args[*]}\n"
     $setup_command "${setup_args[@]}"
 fi
