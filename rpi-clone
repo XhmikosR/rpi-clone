@@ -236,14 +236,14 @@ unmount_list() {
     if [[ -z "$1" ]]; then
         return
     fi
+
     for dir in $1; do
         qecho "  unmounting $dir"
         if ! umount "$dir"; then
             qecho "  Failed to unmount: $dir"
         fi
-        if ! rmdir "$dir"; then
-            qecho "  Failed to rmdir: $dir"
-        fi
+
+        rmdir "$dir" 2> /dev/null || true
     done
 }
 
