@@ -10,7 +10,7 @@
 # This updated code is located in a fork of Bill Wilson's git repository
 # at https://github.com/geerlingguy/rpi-clone
 
-# shellcheck disable=SC2034,SC2154
+# shellcheck disable=SC2154
 
 version=2.0.26
 
@@ -675,7 +675,6 @@ line=$(fdisk -l "/dev/$src_disk" | grep "Disk identifier:")
 src_disk_ID=${line#*x}
 
 src_mount_table=$(findmnt -o source,target -n -l | grep -e "^/dev/$src_disk" -e "^$src_root_dev" | tr -s " ")
-n_mounts=$(echo "$src_mount_table" | wc -l)
 
 if ((alt_root_part_num > 0 && n_src_parts < 2)); then
     echo "
@@ -1031,9 +1030,6 @@ if [[ ${chk_disk: -1} =~ ^[0-9]$ ]]; then
         if [[ -z "$edit_fstab_name" ]] &&
             ! grep -q "^PARTUUID=" /etc/fstab; then
             edit_fstab_name=$dst_part_base
-            assumed_fstab_edit=1
-        else
-            assumed_fstab_edit=0
         fi
     else
         qecho "
@@ -1077,13 +1073,11 @@ for ((p = 1; p <= n_dst_parts; p++)); do
     dst_exists[p]=1
 
     part="${dst_part_base}${p}"
-    dst_partition[p]="$part"
     dst_device[p]="/dev/$part"
 
-    dst_start_sector[p]=$(echo "$line" | cut -d ":" -f 2 | tr -d 's')
     dst_size_sectors[p]=$(echo "$line" | cut -d ":" -f 4 | tr -d 's')
-
     part_type=$(echo "$line" | cut -d ":" -f 5)
+
     if [[ -n "$part_type" ]]; then
         dst_fs_type[p]="$part_type"
     else
@@ -1104,9 +1098,6 @@ for ((p = 1; p <= n_dst_parts; p++)); do
 done
 
 fs_match=1
-root_part_match=0
-first_part_mismatch=0
-
 initialize=$((force_initialize))
 
 for ((p = 1; p <= n_src_parts; p++)); do
@@ -1123,11 +1114,7 @@ for ((p = 1; p <= n_src_parts; p++)); do
         elif [[ "$stype" == *"ext"* && "$dtype" == *"ext"* ]]; then
             tmp_match=1
         fi
-        if ((tmp_match && p == root_part_num)); then
-            root_part_match=1
-        fi
         if ((!tmp_match)) && ((src_sync_part[p])); then
-            first_part_mismatch=$p
             fs_match=0
             break
         fi
@@ -1136,9 +1123,6 @@ done
 
 if ((!fs_match)); then
     initialize=1
-    fs_match_string="do not match"
-else
-    fs_match_string="OK, they match"
 fi
 
 if ((initialize)) && ((quiet)); then
