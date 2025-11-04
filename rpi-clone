@@ -321,8 +321,7 @@ print_partitions() {
 
     printf "\n%-43s%s" "Booted disk: $src_disk $src_size_readable" \
         "Destination disk: $dst_disk $dst_size_readable"
-    echo "
----------------------------------------------------------------------------"
+    echo -e "\n---------------------------------------------------------------------------"
     out=$'Part, Size,FS,Label         ,Part, Size,FS,Label\n'
     for ((p = 1; p <= n_parts; p++)); do
         if ((p <= n_src_parts && src_exists[p])); then
@@ -1019,9 +1018,7 @@ fi
 chk_disk=$(cat /proc/partitions | grep -m 1 "$dst_disk")
 
 if [[ -z "$chk_disk" ]]; then
-    echo "
-  Cannot find '$dst_disk' in the partition table.  The partition table is:"
-    cat /proc/partitions
+    echo -e "\n  Cannot find '$dst_disk' in the partition table.  The partition table is:\n$(cat /proc/partitions)"
     exit 1
 fi
 
@@ -1242,15 +1239,11 @@ Use -U for unattended even if initializing.
         if ((n_image_parts > 2)); then
             printf "%-22s : %s\n" " " "Possible options:"
             if ((rpios)); then
-                printf "%-22s : %s\n" " " \
-                    "    Use -f2 to force a two partition initialize clone."
+                printf "%-22s : %s\n" " " "    Use -f2 to force a two partition initialize clone."
             fi
-            printf "%-22s : %s\n" " " \
-                "    Use -m to limit partitions to clone."
-            printf "%-22s : %s\n" " " \
-                "    Manually create custom partitions that can work."
-            printf "%-22s : %s\n" " " \
-                "    Larger destination disk.."
+            printf "%-22s : %s\n" " " "    Use -m to limit partitions to clone."
+            printf "%-22s : %s\n" " " "    Manually create custom partitions that can work."
+            printf "%-22s : %s\n" " " "    Larger destination disk.."
         fi
         printf "%-23s:\n" "-----------------------"
         exit 1
@@ -1262,8 +1255,7 @@ Use -U for unattended even if initializing.
     print_image_actions
     print_options
 
-    printf "%-22s : %s\n" "** WARNING **" \
-        "All destination disk $dst_disk data will be overwritten!"
+    printf "%-22s : %s\n" "** WARNING **" "All destination disk $dst_disk data will be overwritten!"
 
     if ((rpios_recent && p1_size_new == 0 && src_size_sectors[1] < 400000)); then
         printf "%-22s : %s\n" "** WARNING **" "Your source /boot partition is smaller than the"
